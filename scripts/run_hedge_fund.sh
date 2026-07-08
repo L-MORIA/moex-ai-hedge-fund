@@ -68,9 +68,9 @@ else
     echo "   Using: $DATA_FILE"
 fi
 
-# ── Step 2: Run analysts in parallel ─────────────────────────────────────
+# ── Step 2: Run analysts ────────────────────────────────────────────────
 echo ""
-echo ">> [2/3] Launching 4 analysts (parallel)..."
+echo ">> [2/3] Launching 4 analysts ($MODE mode)..."
 echo ""
 
 ANALYSTS_DIR=$(mktemp -d)
@@ -83,30 +83,52 @@ ANALYSTS=(
     "quant:opencode/deepseek-v4-flash-free:Quant (Deepseek)"
 )
 
-PID_LIST=""
-for entry in "${ANALYSTS[@]}"; do
-    IFS=":" read -r role model label <<< "$entry"
-    PERSONA_FILE="$PERSONAS_DIR/${role}_analyst.txt"
-
+# Run a single analyst, optionally with prior context
+run_analyst() {
+    local role="$1" model="$2" label="$3" context_file="$4"
+    local PERSONA_FILE="$PERSONAS_DIR/${role}_analyst.txt"
     if [ ! -f "$PERSONA_FILE" ]; then
         echo "  SKIP: Missing persona $PERSONA_FILE"
-        continue
+        return
     fi
-
     echo "  >> $role ($model)..."
-    {
+    if [ -n "$context_file" ] && [ -f "$context_file" ]; then
+        # Pipeline mode: inject previous analysis as context
+        (cat "$PERSONA_FILE"; echo ""; echo "=== PREVIOUS ANALYSIS ==="; cat "$context_file"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
+            | opencode run --model "$model" \
+            > "$ANALYSTS_DIR/${role}.txt" 2>/dev/null
+    else
+        # Council mode: data only
         (cat "$PERSONA_FILE"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
             | opencode run --model "$model" \
             > "$ANALYSTS_DIR/${role}.txt" 2>/dev/null
-        echo "  DONE: $role" >&2
-    } &
-    sleep 2
-    PID_LIST="$PID_LIST $!"
-done
+    fi
+    local ec=$?
+    echo "  DONE: $role" >&2
+    return $ec
+}
 
-echo ""
-echo "  Waiting for all analysts..."
-wait $PID_LIST || true
+if [ "$MODE" = "pipeline" ]; then
+    # Pipeline: sequential, each sees previous analysis
+    prev_ctx=""
+    for entry in "${ANALYSTS[@]}"; do
+        IFS=":" read -r role model label <<< "$entry"
+        run_analyst "$role" "$model" "$label" "$prev_ctx"
+        prev_ctx="$ANALYSTS_DIR/${role}.txt"
+    done
+else
+    # Council: parallel (default)
+    PID_LIST=""
+    for entry in "${ANALYSTS[@]}"; do
+        IFS=":" read -r role model label <<< "$entry"
+        run_analyst "$role" "$model" "$label" "" &
+        sleep 2
+        PID_LIST="$PID_LIST $!"
+    done
+    echo ""
+    echo "  Waiting for all analysts..."
+    wait $PID_LIST || true
+fi
 echo "  All analysts completed."
 echo ""
 
