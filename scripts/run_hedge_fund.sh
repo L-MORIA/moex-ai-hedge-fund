@@ -92,19 +92,25 @@ run_analyst() {
         return
     fi
     echo "  >> $role ($model)..."
+    local outfile="$ANALYSTS_DIR/${role}.txt"
+    local errfile="$ANALYSTS_DIR/${role}.err"
     if [ -n "$context_file" ] && [ -f "$context_file" ]; then
         # Pipeline mode: inject previous analysis as context
         (cat "$PERSONA_FILE"; echo ""; echo "=== PREVIOUS ANALYSIS ==="; cat "$context_file"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
             | opencode run --model "$model" \
-            > "$ANALYSTS_DIR/${role}.txt" 2>/dev/null
+            > "$outfile" 2>"$errfile"
     else
         # Council mode: data only
         (cat "$PERSONA_FILE"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
             | opencode run --model "$model" \
-            > "$ANALYSTS_DIR/${role}.txt" 2>/dev/null
+            > "$outfile" 2>"$errfile"
     fi
     local ec=$?
+    if [ ! -s "$outfile" ]; then
+        echo "  WARN: $role produced no output (check $errfile)" >&2
+    fi
     echo "  DONE: $role" >&2
+    rm -f "$errfile"
     return $ec
 }
 
@@ -133,7 +139,7 @@ echo "  All analysts completed."
 echo ""
 
 # ── Step 3: Arbiter (CIO) ───────────────────────────────────────────────
-echo ">> [3/3] CIO synthesis (Nemotron 3 Ultra)..."
+echo ">> [3/3] CIO synthesis..."
 echo ""
 
 ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
@@ -156,25 +162,17 @@ ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
 
 PERSONA_ARBITER="$PERSONAS_DIR/arbiter.txt"
 if [ -f "$PERSONA_ARBITER" ]; then
-    echo "  Running CIO (Nemotron 3 Ultra, 550B)..."
-    echo "  (this takes 2-5 min depending on OpenCode Zen)"
+    echo "  Running CIO (Deepseek V4 Flash) ..."
+    echo "  (reliable model - Nemotron 3 Ultra often fails on free tier)"
     echo ""
     {
         cat "$PERSONA_ARBITER"
         echo ""
         echo "=== ANALYST REPORTS ==="
         cat "$ARBITER_INPUT"
-    } | opencode run --model "opencode/nemotron-3-ultra-free" 2>&1 || {
-        echo ""
-        echo "NOTE: Nemotron 3 Ultra failed. Falling back to Deepseek V4 Flash..."
-        {
-            cat "$PERSONA_ARBITER"
-            echo ""
-            echo "=== ANALYST REPORTS ==="
-            cat "$ARBITER_INPUT"
-        } | opencode run --model "opencode/deepseek-v4-flash-free"
-    }
+    } | opencode run --model "opencode/deepseek-v4-flash-free" 2>&1
     echo ""
+    echo "  Tip: export CIO_MODEL=opencode/nemotron-3-ultra-free to try 550B"
 else
     echo "SKIP: Missing arbiter persona"
     echo "--- Analyst Reports ---"
