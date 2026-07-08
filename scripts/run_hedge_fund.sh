@@ -38,15 +38,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo ""
-echo "═══════════════════════════════════════════════"
+echo "======================================================"
 echo "  MOEX AI Hedge Fund — $MODE mode"
 echo "  Tickers: $TICKERS"
-echo "═══════════════════════════════════════════════"
+echo "======================================================"
 echo ""
 
 # ── Step 1: Collect data ─────────────────────────────────────────────────
 if [ "$NO_COLLECT" = false ] && [ -z "$DATA_FILE" ]; then
-    echo "▸ [1/3] Collecting MOEX data..."
+    echo ">> [1/3] Collecting MOEX data..."
     mkdir -p "$DATA_DIR"
     TIMESTAMP=$(date +"%Y-%m-%d_%H%M")
     DATA_FILE="$DATA_DIR/moex_data_${TIMESTAMP}.json"
@@ -57,9 +57,9 @@ if [ "$NO_COLLECT" = false ] && [ -z "$DATA_FILE" ]; then
         --output "$DATA_FILE"
     echo ""
 elif [ -n "$DATA_FILE" ]; then
-    echo "▸ [1/3] Using existing data: $DATA_FILE"
+    echo ">> [1/3] Using existing data: $DATA_FILE"
 else
-    echo "▸ [1/3] Skipping data collection (--no-collect)"
+    echo ">> [1/3] Skipping data collection (--no-collect)"
     DATA_FILE=$(ls -t "$DATA_DIR"/moex_data_*.json 2>/dev/null | head -1)
     if [ -z "$DATA_FILE" ]; then
         echo "ERROR: No existing data found. Run without --no-collect first."
@@ -70,7 +70,7 @@ fi
 
 # ── Step 2: Run analysts in parallel ─────────────────────────────────────
 echo ""
-echo "▸ [2/3] Launching 4 analysts (parallel)..."
+echo ">> [2/3] Launching 4 analysts (parallel)..."
 echo ""
 
 ANALYSTS_DIR=$(mktemp -d)
@@ -111,7 +111,7 @@ echo "  All analysts completed."
 echo ""
 
 # ── Step 3: Arbiter (CIO) ───────────────────────────────────────────────
-echo "▸ [3/3] CIO synthesis (Nemotron 3 Ultra)..."
+echo ">> [3/3] CIO synthesis (Nemotron 3 Ultra)..."
 echo ""
 
 ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
@@ -160,6 +160,6 @@ else
 fi
 
 echo ""
-echo "═══════════════════════════════════════════════"
+echo "======================================================"
 echo "  Data: $DATA_FILE"
-echo "═══════════════════════════════════════════════"
+echo "======================================================"

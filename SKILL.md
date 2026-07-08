@@ -27,12 +27,12 @@ metadata:
 ```
 📡 Сбор данных MOEX (портфель, свечи, новости, RSS, индексы)
         │
-        ├── 🧮 Big Pickle Med    — Фундаментальный аналитик (мультипликаторы, макро)
-        ├── 🔬 Deepseek V4 Flash — Новостной аналитик (RSS, биржевые новости, сантимент)
-        ├── 📈 Mimo V2.5         — Технический аналитик (OHLCV, тренды, объемы)
-        ├── ⚙️ North Mini Code   — Квант-аналитик (метрики, статистика, скрининг)
+        ├── 🧮 Big Pickle Med      — Фундаментальный аналитик
+        ├── 🔬 Deepseek V4 Flash   — Новостной аналитик
+        ├── 📈 Mimo V2.5           — Технический аналитик
+        ├── ⚙️ Deepseek V4 Flash   — Квант-аналитик
         │
-        └── 👑 Nemotron 3 Ultra — CIO / Арбитер (собирает все 4 анализа → итоговый сигнал)
+        └── 👑 Nemotron 3 Ultra    — CIO / Арбитр
                     │
                     ▼
          BUY/SELL/HOLD + обоснование + уверенность
@@ -40,13 +40,15 @@ metadata:
 
 ## Аналитики и их модели
 
-| Роль | Модель | Вес | Философия | Стиль |
-|------|--------|------|-----------|-------|
-| 🧮 **Фундаментальный** | `opencode/big-pickle` | 70B | Value investing | Баффет + РФ |
-| 🔬 **Новостной (RSS)** | `opencode/deepseek-v4-flash-free` | 284B | Сантимент, event-driven | Сорос |
-| 📈 **Технический** | `opencode/mimo-v2.5-free` | 7B | Тренды, паттерны | Мартин Принг |
-| ⚙️ **Квант** | `opencode/north-mini-code-free` | ~1-3B | Статистика, скрининг | Саймонс |
-| 👑 **CIO / Арбитр** | `opencode/nemotron-3-ultra-free` | 550B | Синтез, риск-менеджмент | Далио |
+| Роль | Модель | Вес | Философия |
+|------|--------|------|-----------|
+| 🧮 **Фундаментальный** | `opencode/big-pickle` | 70B | Value investing (Баффет + РФ) |
+| 🔬 **Новостной (RSS)** | `opencode/deepseek-v4-flash-free` | 284B | Сантимент, event-driven (Сорос) |
+| 📈 **Технический** | `opencode/mimo-v2.5-free` | 7B | Тренды, паттерны (Принг) |
+| ⚙️ **Квант** | `opencode/deepseek-v4-flash-free` | 284B | Статистика, скрининг (Саймонс) |
+| 👑 **CIO / Арбитр** | `opencode/nemotron-3-ultra-free` | 550B | Синтез, риск (Далио) |
+
+> **Note:** Quant изначально был `north-mini-code-free` (~1-3B), но оказался слишком слаб для аналитики (146 байт мусора вместо разбора данных). Заменён на Deepseek V4 Flash (284B). Diversity между News и Quant обеспечивается разными промптами, а не архитектурой модели.
 
 ## Установка
 
@@ -121,15 +123,16 @@ bash scripts/run_hedge_fund.sh --mode pipeline
         │  collect_moex_data.py   │
         └────────┬────────────────┘
                  │ data.json
-    ┌────────────┼────────────────┐
-    ▼            ▼                ▼
- Big Pickle   Deepseek V4     Mimo V2.5    North Mini
- (fundamental)  (news)       (technical)    (quant)
-    │            │                │            │
-    └────────────┼────────────────┼────────────┘
+    ┌────────────┼──────────────────────┐
+    ▼            ▼          ▼           ▼
+ Big Pickle   Deepseek   Mimo V2.5   Deepseek
+ (fundamental) (news)   (technical)  (quant)
+     70B        284B       7B         284B
+    │            │          │           │
+    └────────────┼──────────┼───────────┘
                  ▼
-          Nemotron 3 Ultra
-              (CIO)
+          Nemotron 3 Ultra (550B)
+          └─ fallback: Deepseek V4 Flash
                  │
                  ▼
           BUY/SELL/HOLD
@@ -163,11 +166,11 @@ cronjob action=create schedule='0 10 * * 1-5' name='MOEX AI Hedge Fund' \
 
 ## Pitfalls
 
-1. **OpenCode Zen timeout** — Nemotron 3 Ultra может упасть на длинных контекстах. В скрипте добавлен `timeout 180` + fallback на Deepseek V4 Flash.
+1. **Windows bat→bash path backslashes** — при запуске `hedge_fund.bat` → `bash run_hedge_fund.sh`, бэкслеши в путях (`data\market.json`) ломают bash. В `.bat` используем `/`, в скрипте `tr '\\' '/'` для защиты. См. `references/windows-bat-bash-paths.md`
 2. **MOEX открыт 10:00-18:45 MSK** — запускать не раньше 10:15.
-3. **Параллельные процессы** — через `&` + `wait`. Не последовательно.
+3. **Выходные** — MOEX закрыт. Не запускать в Сб-Вс.
 4. **RSS не всегда доступен** — SmartLab, ПРАЙМ, Интерфакс могут быть недоступны. Скрипт обрабатывает ошибки.
-5. **Выходные** — MOEX закрыт. Не запускать в Сб-Вс.
-6. **Большие датасеты** триггерят таймаут — ограничивать свечи 14 днями, RSS 48 часами.
-7. **`--output` ДО подкоманды** — `moex_iss.py --output json candles TICKER`, не `moex_iss.py candles TICKER --output json`.
-8. **Windows bat→bash path backslashes** — при запуске через `.bat` бэкслеши в путях ломают bash. Скрипт нормализует через `tr '\\' '/'`. Подробнее: `references/windows-bat-bash-paths.md`
+5. **Nemotron 3 Ultra может виснуть** на большом контексте — в скрипте fallback на Deepseek V4 Flash.
+6. **North Mini Code слаб для аналитики** — заменён на Deepseek в quant-роли. Не использовать для задач, требующих рассуждений.
+7. **`--output` ДО подкоманды** — `moex_iss.py --output json candles TICKER`, не `candles TICKER --output json`.
+8. **`timeout` не использовать в .bat→bash контексте** — при запуске bash из `.bat` `timeout` резолвится в Windows `TIMEOUT` (другой синтаксис), а не в GNU `/usr/bin/timeout`. В скрипте `timeout` отсутствует — если opencode завис, закройте окно.

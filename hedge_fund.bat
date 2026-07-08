@@ -3,10 +3,10 @@ REM MOEX AI Hedge Fund — Desktop Launcher
 REM Запускает сбор данных и мульти-агентный анализ MOEX
 
 cd /d "%~dp0"
-echo ═══════════════════════════════════════════════
+echo =====================================================
 echo   MOEX AI Hedge Fund
 echo   Tickers: SBER, GAZP, LKOH, SBERP, VTBR
-echo ═══════════════════════════════════════════════
+echo =====================================================
 echo.
 
 echo [1/2] Collecting MOEX data...
