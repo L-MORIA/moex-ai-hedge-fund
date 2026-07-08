@@ -1,10 +1,10 @@
 @echo off
-REM MOEX AI Hedge Fund Pipeline — Desktop Launcher
+REM MOEX AI Hedge Fund Pipeline - Desktop Launcher
 REM Последовательный режим: аналитики идут друг за другом с передачей контекста
 
 cd /d "%~dp0"
 echo =====================================================
-echo   MOEX AI Hedge Fund — Pipeline
+echo   MOEX AI Hedge Fund - Pipeline
 echo   Tickers: SBER, GAZP, LKOH, SBERP, VTBR
 echo =====================================================
 echo.

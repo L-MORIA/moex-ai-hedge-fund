@@ -1,5 +1,5 @@
 @echo off
-REM MOEX AI Hedge Fund — Desktop Launcher
+REM MOEX AI Hedge Fund - Desktop Launcher
 REM Запускает сбор данных и мульти-агентный анализ MOEX
 
 cd /d "%~dp0"
