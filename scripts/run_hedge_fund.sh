@@ -85,7 +85,7 @@ ANALYSTS=(
 
 # Run a single analyst, optionally with prior context
 run_analyst() {
-    local role="$1" model="$2" label="$3" context_file="$4"
+    local role="$1" model="$2" label="$3"
     local PERSONA_FILE="$PERSONAS_DIR/${role}_analyst.txt"
     if [ ! -f "$PERSONA_FILE" ]; then
         echo "  SKIP: Missing persona $PERSONA_FILE"
@@ -94,20 +94,12 @@ run_analyst() {
     echo "  >> $role ($model)..."
     local outfile="$ANALYSTS_DIR/${role}.txt"
     local errfile="$ANALYSTS_DIR/${role}.err"
-    if [ -n "$context_file" ] && [ -f "$context_file" ]; then
-        # Pipeline mode: inject previous analysis as context
-        (cat "$PERSONA_FILE"; echo ""; echo "=== PREVIOUS ANALYSIS ==="; cat "$context_file"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
-            | opencode run --model "$model" \
-            > "$outfile" 2>"$errfile"
-    else
-        # Council mode: data only
-        (cat "$PERSONA_FILE"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
-            | opencode run --model "$model" \
-            > "$outfile" 2>"$errfile"
-    fi
+    (cat "$PERSONA_FILE"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
+        | opencode run --model "$model" \
+        > "$outfile" 2>"$errfile"
     local ec=$?
     if [ ! -s "$outfile" ]; then
-        echo "  WARN: $role produced no output (check $errfile)" >&2
+        echo "  WARN: $role produced no output ($(head -c 200 "$errfile" 2>/dev/null))" >&2
     fi
     echo "  DONE: $role" >&2
     rm -f "$errfile"
@@ -115,19 +107,19 @@ run_analyst() {
 }
 
 if [ "$MODE" = "pipeline" ]; then
-    # Pipeline: sequential, each sees previous analysis
-    prev_ctx=""
+    # Pipeline: sequential (each gets same data, CIO sees accumulated reports)
     for entry in "${ANALYSTS[@]}"; do
         IFS=":" read -r role model label <<< "$entry"
-        run_analyst "$role" "$model" "$label" "$prev_ctx"
-        prev_ctx="$ANALYSTS_DIR/${role}.txt"
+        run_analyst "$role" "$model" "$label"
+        # Stagger to avoid hammering API
+        sleep 1
     done
 else
     # Council: parallel (default)
     PID_LIST=""
     for entry in "${ANALYSTS[@]}"; do
         IFS=":" read -r role model label <<< "$entry"
-        run_analyst "$role" "$model" "$label" "" &
+        run_analyst "$role" "$model" "$label" &
         sleep 2
         PID_LIST="$PID_LIST $!"
     done
