@@ -173,4 +173,4 @@ cronjob action=create schedule='0 10 * * 1-5' name='MOEX AI Hedge Fund' \
 5. **Nemotron 3 Ultra может виснуть** на большом контексте — в скрипте fallback на Deepseek V4 Flash.
 6. **North Mini Code слаб для аналитики** — заменён на Deepseek в quant-роли. Не использовать для задач, требующих рассуждений.
 7. **`--output` ДО подкоманды** — `moex_iss.py --output json candles TICKER`, не `candles TICKER --output json`.
-8. **`timeout` не использовать в .bat→bash контексте** — при запуске bash из `.bat` `timeout` резолвится в Windows `TIMEOUT` (другой синтаксис), а не в GNU `/usr/bin/timeout`. В скрипте `timeout` отсутствует — если opencode завис, закройте окно.
+8. **`timeout` не использовать в .bat→bash контексте** — при запуске bash из `.bat` `timeout` резолвится в Windows `TIMEOUT` (другой синтаксис), а не в GNU `/usr/bin/timeout`. В скрипте `timeout` отсутствует — если opencode завис, закройте окно. См. `references/gnu-timeout-vs-windows.md`.
