@@ -13,7 +13,7 @@
 #   bash scripts/run_hedge_fund.sh --no-collect        # использовать сохранённые данные
 #   bash scripts/run_hedge_fund.sh --data data.json    # конкретный файл данных
 
-set -euo pipefail
+set -eo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PERSONAS_DIR="$SKILL_DIR/personas"
@@ -60,7 +60,6 @@ elif [ -n "$DATA_FILE" ]; then
     echo "▸ [1/3] Using existing data: $DATA_FILE"
 else
     echo "▸ [1/3] Skipping data collection (--no-collect)"
-    # Use latest data file
     DATA_FILE=$(ls -t "$DATA_DIR"/moex_data_*.json 2>/dev/null | head -1)
     if [ -z "$DATA_FILE" ]; then
         echo "ERROR: No existing data found. Run without --no-collect first."
@@ -74,7 +73,6 @@ echo ""
 echo "▸ [2/3] Launching 4 analysts (parallel)..."
 echo ""
 
-# Временные файлы для результатов
 ANALYSTS_DIR=$(mktemp -d)
 trap "rm -rf '$ANALYSTS_DIR'" EXIT
 
@@ -98,16 +96,14 @@ for entry in "${ANALYSTS[@]}"; do
     echo "  >> $role ($model)..."
     {
         (cat "$PERSONA_FILE"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
-            | timeout 180 opencode run --model "$model" \
+            | opencode run --model "$model" \
             > "$ANALYSTS_DIR/${role}.txt" 2>/dev/null
         echo "  DONE: $role" >&2
     } &
-    # Small stagger to avoid simultaneous model builds
     sleep 2
     PID_LIST="$PID_LIST $!"
 done
 
-# Ждём всех аналитиков
 echo ""
 echo "  Waiting for all analysts..."
 wait $PID_LIST || true
@@ -118,7 +114,6 @@ echo ""
 echo "▸ [3/3] CIO synthesis (Nemotron 3 Ultra)..."
 echo ""
 
-# Собираем все анализы
 ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
 {
     echo "# MOEX AI Hedge Fund -- Analyst Reports"
@@ -139,21 +134,23 @@ ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
 
 PERSONA_ARBITER="$PERSONAS_DIR/arbiter.txt"
 if [ -f "$PERSONA_ARBITER" ]; then
-    echo "  Running CIO (Nemotron 3 Ultra, max 5 min)..."
+    echo "  Running CIO (Nemotron 3 Ultra, 550B)..."
+    echo "  (this takes 2-5 min depending on OpenCode Zen)"
+    echo ""
     {
         cat "$PERSONA_ARBITER"
         echo ""
         echo "=== ANALYST REPORTS ==="
         cat "$ARBITER_INPUT"
-    } | timeout 300 opencode run --model "opencode/nemotron-3-ultra-free" || {
+    } | opencode run --model "opencode/nemotron-3-ultra-free" 2>&1 || {
         echo ""
-        echo "NOTE: Nemotron 3 Ultra timeout (>5 min). Falling back to Deepseek V4 Flash..."
+        echo "NOTE: Nemotron 3 Ultra failed. Falling back to Deepseek V4 Flash..."
         {
             cat "$PERSONA_ARBITER"
             echo ""
             echo "=== ANALYST REPORTS ==="
             cat "$ARBITER_INPUT"
-        } | timeout 300 opencode run --model "opencode/deepseek-v4-flash-free"
+        } | opencode run --model "opencode/deepseek-v4-flash-free"
     }
     echo ""
 else
