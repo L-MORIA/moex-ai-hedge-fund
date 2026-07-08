@@ -3,7 +3,7 @@ name: moex-ai-hedge-fund
 description: >-
   MOEX AI Hedge Fund — multi-agent ensemble для анализа MOEX (SBER, GAZP, LKOH, SBERP, VTBR)
   через 5 бесплатных OpenCode Zen моделей с разными инвестиционными философиями.
-version: 1.0.0
+version: 1.0.1
 author: L-MORIA
 tags: [moex, ai-hedge-fund, multi-agent, ensemble, trading, finance]
 platforms: [windows]
@@ -50,7 +50,6 @@ metadata:
 
 ## Установка
 
-Скил уже создан локально. Если нужно переустановить из хаба:
 ```bash
 hermes skills install moex-ai-hedge-fund
 ```
@@ -76,18 +75,20 @@ bash scripts/run_hedge_fund.sh --tickers SBER,GAZP
 
 ```
 moex-ai-hedge-fund/
-├── SKILL.md                          # этот файл
+├── SKILL.md
 ├── scripts/
-│   ├── collect_moex_data.py          # сборщик MOEX-данных
-│   └── run_hedge_fund.sh             # оркестратор
+│   ├── collect_moex_data.py
+│   └── run_hedge_fund.sh
 ├── personas/
-│   ├── fundamental_analyst.txt       # промпт для Big Pickle Med
-│   ├── news_analyst.txt              # промпт для Deepseek V4 Flash
-│   ├── technical_analyst.txt         # промпт для Mimo V2.5
-│   ├── quant_analyst.txt             # промпт для North Mini Code
-│   └── arbiter.txt                   # промпт для Nemotron 3 Ultra (CIO)
+│   ├── fundamental_analyst.txt
+│   ├── news_analyst.txt
+│   ├── technical_analyst.txt
+│   ├── quant_analyst.txt
+│   └── arbiter.txt
+├── references/
+│   └── windows-bat-bash-paths.md
 └── data/
-    └── moex_data_*.json              # кэш данных (создаётся при сборе)
+    └── moex_data_*.json
 ```
 
 ## Скрипты
@@ -102,18 +103,6 @@ python scripts/collect_moex_data.py --candle-days 7 --rss-hours 24
 python scripts/collect_moex_data.py --output data/mydata.json
 ```
 
-Выходной JSON:
-```json
-{
-  "meta": {"collected_at": "...", "tickers": ["SBER","GAZP","LKOH","SBERP","VTBR"]},
-  "portfolio": "SBER @ 295.72 ...",
-  "candles": {"SBER": [{"begin":"...","open":304.42,"high":304.42,"low":302.01,"close":303.34,"volume":2735540}, ...]},
-  "moex_news": "MOEX news (last 2d): ...",
-  "rss_news": [{"title":"...", "link":"...", "ticker":"SBER", ...}],
-  "indices": "IMOEX N/A ..."
-}
-```
-
 ### run_hedge_fund.sh
 
 Оркестратор: сбор данных → 4 аналитика (параллельно) → CIO.
@@ -126,7 +115,7 @@ bash scripts/run_hedge_fund.sh
 bash scripts/run_hedge_fund.sh --mode pipeline
 ```
 
-Архитектура Council (по умолчанию):
+Архитектура Council:
 ```
         ┌─────────────────────────┐
         │  collect_moex_data.py   │
@@ -148,55 +137,37 @@ bash scripts/run_hedge_fund.sh --mode pipeline
 
 ## Persona-файлы (промпты для моделей)
 
-Каждый промпт задаёт:
-- **Роль** — тип аналитика
-- **Философию** — инвестиционный стиль
-- **Формат ответа** — структурированный TICKER | SIGNAL | CONFIDENCE% | RATIONALE
-- **Правила** — что можно/нельзя, как обрабатывать отсутствие данных
+Каждый промпт задаёт: роль, философию, формат ответа (`TICKER | SIGNAL | CONFIDENCE% | RATIONALE`), правила валидации.
 
-**fundamental_analyst.txt** — фундаменталка: мультипликаторы, дивиденды, макро РФ, P/E оценка
-**news_analyst.txt** — сантимент: тональность новостей, триггеры, event-driven
-**technical_analyst.txt** — теханализ: тренды, поддержка/сопротивление, RSI, объёмы
-**quant_analyst.txt** — квант: волатильность, корреляция, риск-метрики
+**fundamental_analyst.txt** — мультипликаторы, дивиденды, макро РФ
+**news_analyst.txt** — сантимент, триггеры, event-driven
+**technical_analyst.txt** — тренды, поддержка/сопротивление, RSI, объёмы
+**quant_analyst.txt** — волатильность, корреляция, риск-метрики
 **arbiter.txt** — CIO: синтез, взвешенное голосование, аллокация
 
 ## Правила CIO (арбитра)
 
-1. **BUY** = минимум 3 из 4 аналитиков сказали BUY, уверенность > 60%
-2. **SELL** = минимум 3 из 4 аналитиков сказали SELL, уверенность > 60%
-3. **HOLD** = во всех остальных случаях
-4. 2-2 → HOLD
-5. Максимум 30% в одну бумагу
-6. Уверенность CIO = средняя уверенность с поправкой на риск
+1. **BUY** = минимум 3 из 4 аналитиков BUY, уверенность > 60%
+2. **SELL** = минимум 3 из 4 аналитиков SELL, уверенность > 60%
+3. **HOLD** = все остальные случаи (в т.ч. 2-2)
+4. Максимум 30% в одну бумагу
+5. Уверенность CIO = средняя уверенность с поправкой на риск
 
 ## Cron-режим
 
 ```bash
-cronjob action=create \
-  schedule='0 10 * * 1-5' \
-  name='MOEX AI Hedge Fund' \
+cronjob action=create schedule='0 10 * * 1-5' name='MOEX AI Hedge Fund' \
   skills='[moex-ai-hedge-fund,moex-iss]' \
-  prompt='Запусти полный MOEX AI Hedge Fund. Собери данные по SBER,GAZP,LKOH,SBERP,VTBR через collect_moex_data.py, прогони через 5 OpenCode Zen моделей используя run_hedge_fund.sh и выдай итоговый инвестиционный сигнал с рекомендациями.'
+  prompt='Запусти MOEX AI Hedge Fund — собери данные по SBER,GAZP,LKOH,SBERP,VTBR, прогони через 5 OpenCode Zen моделей и покажи итоговый сигнал.'
 ```
 
 ## Pitfalls
 
-1. **OpenCode Zen timeout** — Nemotron 3 Ultra может упасть на длинных контекстах. Fallback: Deepseek V4 Flash как CIO.
-2. **MOEX открыт 10:00-18:45 MSK** — запускать не раньше 10:15, чтобы были свежие данные.
-3. **5 моделей ждать** — параллельный запуск через `&` + `wait`. Не последовательно.
+1. **OpenCode Zen timeout** — Nemotron 3 Ultra может упасть на длинных контекстах. В скрипте добавлен `timeout 180` + fallback на Deepseek V4 Flash.
+2. **MOEX открыт 10:00-18:45 MSK** — запускать не раньше 10:15.
+3. **Параллельные процессы** — через `&` + `wait`. Не последовательно.
 4. **RSS не всегда доступен** — SmartLab, ПРАЙМ, Интерфакс могут быть недоступны. Скрипт обрабатывает ошибки.
 5. **Выходные** — MOEX закрыт. Не запускать в Сб-Вс.
-6. **Большие датасеты** могут триггерить таймаут — ограничивать свечи 14 днями, RSS 48 часами.
-7. **`--output` ДО подкоманды** — argparse quirk в moex_iss.py: `moex_iss.py --output json candles TICKER`, не `moex_iss.py candles TICKER --output json`.
-
-## Data collector test result
-
-```
-Portfolio: OK (5 tickers, live prices from MOEX ISS)
-Candles: SBER=3, GAZP=3, LKOH=3 daily OHLCV entries (3d test)
-MOEX news: ~50 entries (2d)
-RSS: empty (no matching news at test time)
-Indices: OK
-File size: 14,475 bytes (3 tickers, 3 days)
-Full 5-ticker 14d run: ~35KB expected
-```
+6. **Большие датасеты** триггерят таймаут — ограничивать свечи 14 днями, RSS 48 часами.
+7. **`--output` ДО подкоманды** — `moex_iss.py --output json candles TICKER`, не `moex_iss.py candles TICKER --output json`.
+8. **Windows bat→bash path backslashes** — при запуске через `.bat` бэкслеши в путях ломают bash. Скрипт нормализует через `tr '\\' '/'`. Подробнее: `references/windows-bat-bash-paths.md`

@@ -98,10 +98,12 @@ for entry in "${ANALYSTS[@]}"; do
     echo "  >> $role ($model)..."
     {
         (cat "$PERSONA_FILE"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
-            | timeout 120 opencode run --model "$model" \
+            | timeout 180 opencode run --model "$model" \
             > "$ANALYSTS_DIR/${role}.txt" 2>/dev/null
         echo "  DONE: $role" >&2
     } &
+    # Small stagger to avoid simultaneous model builds
+    sleep 2
     PID_LIST="$PID_LIST $!"
 done
 
@@ -137,20 +139,23 @@ ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
 
 PERSONA_ARBITER="$PERSONAS_DIR/arbiter.txt"
 if [ -f "$PERSONA_ARBITER" ]; then
+    echo "  Running CIO (Nemotron 3 Ultra, max 5 min)..."
     {
         cat "$PERSONA_ARBITER"
         echo ""
         echo "=== ANALYST REPORTS ==="
         cat "$ARBITER_INPUT"
-    } | timeout 180 opencode run --model "opencode/nemotron-3-ultra-free" 2>/dev/null || {
-        echo "NOTE: Nemotron 3 Ultra timeout. Falling back to Deepseek V4 Flash..." >&2
+    } | timeout 300 opencode run --model "opencode/nemotron-3-ultra-free" || {
+        echo ""
+        echo "NOTE: Nemotron 3 Ultra timeout (>5 min). Falling back to Deepseek V4 Flash..."
         {
             cat "$PERSONA_ARBITER"
             echo ""
             echo "=== ANALYST REPORTS ==="
             cat "$ARBITER_INPUT"
-        } | opencode run --model "opencode/deepseek-v4-flash-free" 2>/dev/null
+        } | timeout 300 opencode run --model "opencode/deepseek-v4-flash-free"
     }
+    echo ""
 else
     echo "SKIP: Missing arbiter persona"
     echo "--- Analyst Reports ---"
