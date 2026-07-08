@@ -80,7 +80,7 @@ ANALYSTS=(
     "fundamental:opencode/big-pickle:Fundamental (Big Pickle)"
     "news:opencode/deepseek-v4-flash-free:News (Deepseek)"
     "technical:opencode/mimo-v2.5-free:Technical (Mimo)"
-    "quant:opencode/north-mini-code-free:Quant (North Mini)"
+    "quant:opencode/deepseek-v4-flash-free:Quant (Deepseek)"
 )
 
 PID_LIST=""
