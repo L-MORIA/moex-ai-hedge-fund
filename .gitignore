@@ -1,0 +1,23 @@
+# Gitignore for moex-ai-hedge-fund
+
+# Cached MOEX data
+data/*.json
+
+# Temp files
+/tmp/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
