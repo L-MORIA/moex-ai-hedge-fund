@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
         --mode) MODE="$2"; shift 2 ;;
         --tickers) TICKERS="$2"; shift 2 ;;
         --no-collect) NO_COLLECT=true; shift ;;
-        --data) DATA_FILE="$2"; shift 2 ;;
+        --data) DATA_FILE="$(echo "$2" | tr '\\' '/')"; shift 2 ;;
         *) echo "Unknown: $1"; exit 1 ;;
     esac
 done
@@ -79,10 +79,10 @@ ANALYSTS_DIR=$(mktemp -d)
 trap "rm -rf '$ANALYSTS_DIR'" EXIT
 
 ANALYSTS=(
-    "fundamental:opencode/big-pickle:🧮 Fundamental (Big Pickle)"
-    "news:opencode/deepseek-v4-flash-free:🔬 News (Deepseek)"
-    "technical:opencode/mimo-v2.5-free:📈 Technical (Mimo)"
-    "quant:opencode/north-mini-code-free:⚙️ Quant (North Mini)"
+    "fundamental:opencode/big-pickle:Fundamental (Big Pickle)"
+    "news:opencode/deepseek-v4-flash-free:News (Deepseek)"
+    "technical:opencode/mimo-v2.5-free:Technical (Mimo)"
+    "quant:opencode/north-mini-code-free:Quant (North Mini)"
 )
 
 PID_LIST=""
@@ -91,17 +91,16 @@ for entry in "${ANALYSTS[@]}"; do
     PERSONA_FILE="$PERSONAS_DIR/${role}_analyst.txt"
 
     if [ ! -f "$PERSONA_FILE" ]; then
-        echo "  ⚠️  Missing persona: $PERSONA_FILE — skipping $role"
+        echo "  SKIP: Missing persona $PERSONA_FILE"
         continue
     fi
 
-    echo "  ▶ $label ($model)..."
+    echo "  >> $role ($model)..."
     {
-        # Склеиваем: persona (роль + инструкции) + data (JSON)
         (cat "$PERSONA_FILE"; echo ""; echo "=== MOEX DATA ==="; cat "$DATA_FILE") \
-            | opencode run --model "$model" \
+            | timeout 120 opencode run --model "$model" \
             > "$ANALYSTS_DIR/${role}.txt" 2>/dev/null
-        echo "  ✅ $label done" >&2
+        echo "  DONE: $role" >&2
     } &
     PID_LIST="$PID_LIST $!"
 done
@@ -109,7 +108,7 @@ done
 # Ждём всех аналитиков
 echo ""
 echo "  Waiting for all analysts..."
-wait $PID_LIST
+wait $PID_LIST || true
 echo "  All analysts completed."
 echo ""
 
@@ -120,7 +119,7 @@ echo ""
 # Собираем все анализы
 ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
 {
-    echo "# MOEX AI Hedge Fund — Analyst Reports"
+    echo "# MOEX AI Hedge Fund -- Analyst Reports"
     echo "Date: $(date)"
     echo "Tickers: $TICKERS"
     echo ""
@@ -129,7 +128,7 @@ ARBITER_INPUT="$ANALYSTS_DIR/all_analyses.txt"
         IFS=":" read -r role model label <<< "$entry"
         REPORT="$ANALYSTS_DIR/${role}.txt"
         if [ -f "$REPORT" ]; then
-            echo "─── $label ───"
+            echo "--- $label ---"
             cat "$REPORT"
             echo ""
         fi
@@ -143,8 +142,8 @@ if [ -f "$PERSONA_ARBITER" ]; then
         echo ""
         echo "=== ANALYST REPORTS ==="
         cat "$ARBITER_INPUT"
-    } | opencode run --model "opencode/nemotron-3-ultra-free" 2>/dev/null || {
-        echo "⚠️  Nemotron 3 Ultra timeout. Falling back to Deepseek V4 Flash..." >&2
+    } | timeout 180 opencode run --model "opencode/nemotron-3-ultra-free" 2>/dev/null || {
+        echo "NOTE: Nemotron 3 Ultra timeout. Falling back to Deepseek V4 Flash..." >&2
         {
             cat "$PERSONA_ARBITER"
             echo ""
@@ -153,12 +152,12 @@ if [ -f "$PERSONA_ARBITER" ]; then
         } | opencode run --model "opencode/deepseek-v4-flash-free" 2>/dev/null
     }
 else
-    echo "⚠️  Missing arbiter persona: $PERSONA_ARBITER"
+    echo "SKIP: Missing arbiter persona"
     echo "--- Analyst Reports ---"
     cat "$ARBITER_INPUT"
 fi
 
 echo ""
 echo "═══════════════════════════════════════════════"
-echo "  📊 Data snapshot: $DATA_FILE"
+echo "  Data: $DATA_FILE"
 echo "═══════════════════════════════════════════════"
