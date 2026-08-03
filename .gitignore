@@ -3,6 +3,12 @@
 # Cached MOEX data
 data/*.json
 
+# Generated reports (runtime artifacts)
+data/hedge_fund_report_*.md
+
+# Debug prompt snapshots (contain hardcoded ticker data from test runs)
+*_prompt.txt
+
 # Temp files
 /tmp/
 

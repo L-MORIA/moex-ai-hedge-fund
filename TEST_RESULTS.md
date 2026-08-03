@@ -27,10 +27,12 @@
 | `opencode/big-pickle` (70B) | 🧮 Fundamental | ✅ Completed |
 | `opencode/deepseek-v4-flash-free` (284B) | 🔬 News | ✅ Completed |
 | `opencode/mimo-v2.5-free` (7B) | 📈 Technical | ✅ Completed |
-| `opencode/north-mini-code-free` (~1-3B) | ⚙️ Quant | ✅ Completed |
+| `opencode/north-mini-code-free` (~1-3B) | ⚙️ Quant | ✅ Completed (later replaced — see note) |
 | `opencode/nemotron-3-ultra-free` (550B) | 👑 CIO | ✅ Completed (no timeout) |
 
 **Duration:** ~3 minutes (4 parallel + 1 sequential)
+
+> **Note:** North Mini Code was later replaced with Deepseek V4 Flash (284B) in the Quant role — the small model produced unusable output (146 bytes of garbage) in subsequent runs. See SKILL.md pitfall #6.
 
 ### CIO Signal
 

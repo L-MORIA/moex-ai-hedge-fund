@@ -5,55 +5,67 @@ This file defines the project structure, conventions, and rules for AI coding ag
 ## Project
 
 - **moex-ai-hedge-fund**: Multi-agent ensemble for MOEX analysis
-- 5 OpenCode Zen free models as specialized analysts
+- 5 analyst roles (4 analysts + CIO arbiter) mapped to user-configured models
 - Target: SBER, GAZP, LKOH, SBERP, VTBR
 - Source: MOEX ISS API (free, no key)
+- Two orchestrators: `run_hedge_fund.py` (Python + `hermes` CLI, recommended) and `run_hedge_fund.sh` (Bash + `opencode` CLI, legacy)
 
 ## Structure
 
 ```
 /scripts/
   collect_moex_data.py    — Python data collector (MOEX ISS + RSS)
-  run_hedge_fund.sh       — Bash orchestrator (parallel analysts + CIO)
+  run_hedge_fund.py       — Python orchestrator via hermes CLI (recommended)
+  run_hedge_fund.sh       — Bash orchestrator via opencode CLI (legacy)
 
 /personas/
-  fundamental_analyst.txt  — Big Pickle Med prompt (value investing)
-  news_analyst.txt         — Deepseek V4 Flash prompt (sentiment)
-  technical_analyst.txt    — Mimo V2.5 prompt (technical analysis)
-  quant_analyst.txt        — North Mini Code prompt (quant metrics)
-  arbiter.txt              — Nemotron 3 Ultra prompt (CIO synthesis)
+  fundamental_analyst.txt  — Value investing prompt (Buffett + RF)
+  news_analyst.txt         — Sentiment / event-driven prompt (Soros)
+  technical_analyst.txt    — Technical analysis prompt (Pring)
+  quant_analyst.txt        — Quant metrics prompt (Simons)
+  arbiter.txt              — CIO synthesis prompt (Dalio)
 
 /data/
   moex_data_*.json         — Cached market data (gitignored)
+  hedge_fund_report_*.md   — Generated reports (gitignored)
 ```
 
 ## Running
 
 ```bash
-# Full pipeline
-python scripts/collect_moex_data.py --output data/market.json
+# Recommended: Python orchestrator (hermes CLI)
+python scripts/run_hedge_fund.py --tickers SBER,GAZP,LKOH,SBERP,VTBR
+python scripts/run_hedge_fund.py --no-collect          # reuse latest data
+python scripts/run_hedge_fund.py --mode pipeline       # sequential
+
+# Legacy: Bash orchestrator (requires opencode CLI)
 bash scripts/run_hedge_fund.sh --data data/market.json
 
-# Reuse cached data
-bash scripts/run_hedge_fund.sh --no-collect
+# Data collection only
+python scripts/collect_moex_data.py --output data/market.json
 ```
 
 ## Rules for AI Agents
 
 1. **Do NOT modify persona files** without explicit user request — they encode investment philosophies
-2. **Run.sh trap cleans temp files** — don't add manual cleanup
+2. **run_hedge_fund.py uses `atexit` to clean temp_dir**; run_hedge_fund.sh uses `trap EXIT` — don't add manual cleanup
 3. **MOEX ISS has a 500-candle limit per request** — the collector handles day iteration
 4. **`--output` must come BEFORE subcommand** in moex_iss.py: `moex_iss.py --output json candles TICKER`
-5. **Test data collector first**, then run the full pipeline
-6. **Check liquidity hours**: MOEX 10:00-18:45 MSK weekdays only
-7. **Leak-check before any push**: grep for Windows paths (`C:\`, `C:\\Users`), emails, tokens
+5. **market_news.py takes ONE ticker positionally** — no `--tickers`/`--json` flags. Loop in caller for multi-ticker.
+6. **Test data collector first**, then run the full pipeline
+7. **Check liquidity hours**: MOEX 10:00-18:45 MSK weekdays only
+8. **Leak-check before any push**: grep for Windows paths (`C:\`, `C:\\Users`), emails, tokens
+9. **`hermes chat` flags**: `-q QUERY` (not `-z`), `-m MODEL`, `-t ''` (empty toolset), `--cli --yolo --ignore-rules -Q`. Model `default` is NOT valid — use a real model ID from `~/.hermes/config.yaml`.
 
-## Model IDs
+## Model IDs (legacy opencode CLI — for run_hedge_fund.sh)
 
-| Model | CLI name |
+> ⚠️ These require the `opencode` CLI and a paid OpenCode Zen account. For the Python orchestrator, map your own models via `--default-model` / `--analyst-model ROLE=MODEL`.
+
+| Role | opencode CLI name |
 |-------|----------|
-| Big Pickle Med | `opencode/big-pickle` |
-| Deepseek V4 Flash | `opencode/deepseek-v4-flash-free` |
-| Mimo V2.5 | `opencode/mimo-v2.5-free` |
-| North Mini Code | `opencode/north-mini-code-free` |
-| Nemotron 3 Ultra | `opencode/nemotron-3-ultra-free` |
+| Fundamental | `opencode/big-pickle` |
+| News / Quant | `opencode/deepseek-v4-flash-free` |
+| Technical | `opencode/mimo-v2.5-free` |
+| Arbiter | `opencode/nemotron-3-ultra-free` |
+
+> **Note:** Quant was originally `opencode/north-mini-code-free` (~1-3B) but it was too weak (146 bytes of garbage instead of data analysis). Replaced with Deepseek V4 Flash (284B). Diversity between News and Quant comes from different prompts, not model architecture.

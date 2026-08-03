@@ -1,6 +1,6 @@
 # MOEX AI Hedge Fund
 
-> Multi-agent ensemble for MOEX analysis (SBER, GAZP, LKOH, SBERP, VTBR) using 5 free OpenCode Zen models as specialized investment analysts.
+> Multi-agent ensemble for MOEX analysis (SBER, GAZP, LKOH, SBERP, VTBR). Four analyst roles + a CIO arbiter, mapped to your own LLM providers via the `hermes` CLI.
 
 ---
 
@@ -8,15 +8,17 @@
 
 ### Overview
 
-MOEX AI Hedge Fund is a **multi-agent ensemble** that adapts the AI Hedge Fund concept for the Moscow Exchange. Five free OpenCode Zen models act as specialized investment analysts, each with a distinct philosophy:
+MOEX AI Hedge Fund is a **multi-agent ensemble** that adapts the AI Hedge Fund concept for the Moscow Exchange. Four analyst roles plus a CIO arbiter, each with a distinct investment philosophy. The Python orchestrator (`run_hedge_fund.py`) calls models through the `hermes` CLI, so you can use any provider you have configured (OpenRouter, Ollama, OpenCode Zen, etc.).
 
-| Role | Model | Weight | Philosophy |
-|------|-------|--------|------------|
-| 🧮 **Fundamental Analyst** | `opencode/big-pickle` | 70B | Value investing (Buffett) |
-| 🔬 **News Analyst** | `opencode/deepseek-v4-flash-free` | 284B | Sentiment/event-driven (Soros) |
-| 📈 **Technical Analyst** | `opencode/mimo-v2.5-free` | 7B | Trends/patterns (Pring) |
-| ⚙️ **Quant Analyst** | `opencode/north-mini-code-free` | ~1-3B | Statistics/screening (Simons) |
-| 👑 **CIO / Arbiter** | `opencode/nemotron-3-ultra-free` | 550B | Synthesis/risk (Dalio) |
+| Role | Default opencode Zen model | Philosophy |
+|------|-------|------------|
+| 🧮 **Fundamental Analyst** | `opencode/big-pickle` (70B) | Value investing (Buffett) |
+| 🔬 **News Analyst** | `opencode/deepseek-v4-flash-free` (284B) | Sentiment/event-driven (Soros) |
+| 📈 **Technical Analyst** | `opencode/mimo-v2.5-free` (7B) | Trends/patterns (Pring) |
+| ⚙️ **Quant Analyst** | `opencode/deepseek-v4-flash-free` (284B) | Statistics/screening (Simons) |
+| 👑 **CIO / Arbiter** | `opencode/nemotron-3-ultra-free` (550B) | Synthesis/risk (Dalio) |
+
+> **Note:** The Quant role originally used `opencode/north-mini-code-free` (~1-3B) but it was too weak for analysis and was replaced with Deepseek V4 Flash. News vs Quant diversity comes from different prompts. To use your own models, see `--default-model` / `--analyst-model ROLE=MODEL` in `run_hedge_fund.py`.
 
 ### Quick Start
 
@@ -25,19 +27,18 @@ MOEX AI Hedge Fund is a **multi-agent ensemble** that adapts the AI Hedge Fund c
 git clone https://github.com/L-MORIA/moex-ai-hedge-fund.git
 cd moex-ai-hedge-fund
 
-# Full run (data → 4 analysts → CIO)
-python scripts/collect_moex_data.py --output data/market.json
-bash scripts/run_hedge_fund.sh --data data/market.json
+# Recommended: Python orchestrator (uses hermes CLI — any provider)
+python scripts/run_hedge_fund.py --tickers SBER,GAZP,LKOH,SBERP,VTBR
 
-# Or just use the shortcut (Windows)
-# Double-click 'MOEX AI Hedge Fund.lnk' on Desktop
+# Legacy: Bash orchestrator (requires opencode CLI + OpenCode Zen account)
+bash scripts/run_hedge_fund.sh
 ```
 
 ### Requirements
 
 - **moex-iss** skill (for MOEX ISS data collection)
-- **opencode** CLI (for running OpenCode Zen models)
-- Python 3.8+ with `requests`
+- **hermes** CLI (for the Python orchestrator) — configure your model in `~/.hermes/config.yaml`
+- Python 3.8+
 
 ---
 
@@ -45,15 +46,17 @@ bash scripts/run_hedge_fund.sh --data data/market.json
 
 ### Обзор
 
-MOEX AI Hedge Fund — это **мульти-агентный ансамбль**, адаптация концепции AI Hedge Fund под Московскую Биржу. Пять бесплатных моделей OpenCode Zen выступают в роли специализированных инвест-аналитиков:
+MOEX AI Hedge Fund — это **мульти-агентный ансамбль**, адаптация концепции AI Hedge Fund под Московскую Биржу. Четыре роли аналитиков плюс CIO-арбитр, каждая со своей инвестиционной философией. Python-оркестратор (`run_hedge_fund.py`) вызывает модели через `hermes` CLI — можно использовать любой настроенный провайдер (OpenRouter, Ollama, OpenCode Zen и т.д.).
 
-| Роль | Модель | Вес | Философия |
-|------|--------|------|-----------|
-| 🧮 **Фундаментальный аналитик** | `opencode/big-pickle` | 70B | Стоимостное инвестирование (Баффет) |
-| 🔬 **Новостной аналитик** | `opencode/deepseek-v4-flash-free` | 284B | Сантимент/event-driven (Сорос) |
-| 📈 **Технический аналитик** | `opencode/mimo-v2.5-free` | 7B | Тренды/паттерны (Принг) |
-| ⚙️ **Квант-аналитик** | `opencode/north-mini-code-free` | ~1-3B | Статистика/скрининг (Саймонс) |
-| 👑 **CIO / Арбитр** | `opencode/nemotron-3-ultra-free` | 550B | Синтез/риск-менеджмент (Далио) |
+| Роль | Модель OpenCode Zen по умолчанию | Философия |
+|------|--------|-----------|
+| 🧮 **Фундаментальный аналитик** | `opencode/big-pickle` (70B) | Стоимостное инвестирование (Баффет) |
+| 🔬 **Новостной аналитик** | `opencode/deepseek-v4-flash-free` (284B) | Сантимент/event-driven (Сорос) |
+| 📈 **Технический аналитик** | `opencode/mimo-v2.5-free` (7B) | Тренды/паттерны (Принг) |
+| ⚙️ **Квант-аналитик** | `opencode/deepseek-v4-flash-free` (284B) | Статистика/скрининг (Саймонс) |
+| 👑 **CIO / Арбитр** | `opencode/nemotron-3-ultra-free` (550B) | Синтез/риск-менеджмент (Далио) |
+
+> **Примечание:** Роль Quant изначально использовала `opencode/north-mini-code-free` (~1-3B), но модель оказалась слишком слабой для анализа и заменена на Deepseek V4 Flash. Diversity между News и Quant обеспечивается разными промптами. Чтобы использовать свои модели — см. `--default-model` / `--analyst-model ROLE=MODEL` в `run_hedge_fund.py`.
 
 ### Быстрый старт
 
@@ -62,19 +65,18 @@ MOEX AI Hedge Fund — это **мульти-агентный ансамбль**
 git clone https://github.com/L-MORIA/moex-ai-hedge-fund.git
 cd moex-ai-hedge-fund
 
-# Полный прогон (данные → 4 аналитика → CIO)
-python scripts/collect_moex_data.py --output data/market.json
-bash scripts/run_hedge_fund.sh --data data/market.json
+# Рекомендуется: Python-оркестратор (через hermes CLI — любой провайдер)
+python scripts/run_hedge_fund.py --tickers SBER,GAZP,LKOH,SBERP,VTBR
 
-# Или ярлык на рабочем столе (Windows)
-# Двойной клик по 'MOEX AI Hedge Fund.lnk'
+# Legacy: Bash-оркестратор (требует opencode CLI и аккаунт OpenCode Zen)
+bash scripts/run_hedge_fund.sh
 ```
 
 ### Требования
 
 - Скил **moex-iss** (для сбора данных MOEX ISS)
-- **opencode** CLI (для запуска моделей OpenCode Zen)
-- Python 3.8+ с `requests`
+- **hermes** CLI (для Python-оркестратора) — настройте модель в `~/.hermes/config.yaml`
+- Python 3.8+
 
 ### Пример сигнала (08.07.2026)
 

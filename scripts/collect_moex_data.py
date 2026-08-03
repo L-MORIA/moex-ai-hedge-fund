@@ -10,12 +10,24 @@ Usage:
   python collect_moex_data.py --hours 72  # RSS за 72ч
 """
 
-import argparse, datetime, json, os, sys, subprocess, tempfile, textwrap
+import argparse, datetime, json, os, sys, subprocess
 
 # Путь к moex-iss скриптам (установленный skill)
-SKILL_DIR = os.path.expanduser("~/.hermes/skills/moex-iss")
+def find_skill_dir():
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, "AppData", "Local", "hermes", "profiles", "old-laptop", "skills", "moex-iss"),
+        os.path.join(home, ".hermes", "profiles", "old-laptop", "skills", "moex-iss"),
+        os.path.expanduser("~/.hermes/skills/moex-iss"),
+    ]
+    for c in candidates:
+        if os.path.isdir(c):
+            return os.path.normpath(c)
+    return os.path.normpath(candidates[0])  # fallback
+
+SKILL_DIR = find_skill_dir()
 MOEX_SCRIPT = os.path.join(SKILL_DIR, "scripts", "moex_iss.py")
-RSS_SCRIPT = os.path.join(SKILL_DIR, "scripts", "rss_market_news.py")
+RSS_SCRIPT = os.path.join(SKILL_DIR, "scripts", "market_news.py")
 
 DEFAULT_TICKERS = "SBER,GAZP,LKOH,SBERP,VTBR"
 CANDLE_DAYS = 14
@@ -54,7 +66,7 @@ def main():
         "portfolio": None,
         "candles": {},
         "moex_news": None,
-        "rss_news": None,
+        "rss_news": {},
         "indices": None,
     }
 
@@ -80,14 +92,14 @@ def main():
     out = run(["python", MOEX_SCRIPT, "news", "--days", "2", "--limit", "20"])
     data["moex_news"] = out.strip()
 
-    # 4. RSS по тикерам
+    # 4. RSS по каждому тикеру отдельно
+    # market_news.py принимает ОДИН тикер позиционно (без --tickers/--json).
+    # Формат вывода — text. Сохраняем как dict {ticker: text}.
     print(f"[4/6] RSS feeds ({args.rss_hours}h)...", file=sys.stderr)
-    out = run(["python", RSS_SCRIPT, "--hours", str(args.rss_hours),
-               "--tickers", args.tickers, "--json"], timeout=45)
-    try:
-        data["rss_news"] = json.loads(out) if out.strip() else []
-    except json.JSONDecodeError:
-        data["rss_news"] = out.strip()
+    for t in tickers:
+        print(f"  RSS {t}...", file=sys.stderr)
+        out = run(["python", RSS_SCRIPT, t, "--hours", str(args.rss_hours)], timeout=45)
+        data["rss_news"][t] = out.strip()
 
     # 5. Индексы
     print("[5/6] Indices...", file=sys.stderr)

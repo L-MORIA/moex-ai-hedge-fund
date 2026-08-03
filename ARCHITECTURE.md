@@ -25,18 +25,19 @@
 │                    ANALYST LAYER (COUNCIL)                   │
 │                                                             │
 │  ┌──────────────────────────────────────────────┐          │
-│  │         PARALLEL (4 opencode processes)       │          │
+│  │    PARALLEL (4 hermes chat processes, via     │          │
+│  │    ThreadPoolExecutor in run_hedge_fund.py)   │          │
 │  │                                              │          │
 │  │  ┌────────────────┐  ┌────────────────┐     │          │
 │  │  │ 🧮 Fundamental │  │ 🔬 News        │     │          │
-│  │  │ Big Pickle Med │  │ Deepseek V4    │     │          │
+│  │  │ big-pickle    │  │ Deepseek V4    │     │          │
 │  │  │ 70B + persona  │  │ 284B + persona │     │          │
 │  │  └────────┬───────┘  └────────┬───────┘     │          │
 │  │           │                   │              │          │
 │  │  ┌────────┴───────┐  ┌────────┴───────┐     │          │
 │  │  │ 📈 Technical   │  │ ⚙️ Quant       │     │          │
-│  │  │ Mimo V2.5      │  │ North Mini Code│     │          │
-│  │  │ 7B + persona   │  │ ~1-3B + persona│     │          │
+│  │  │ Mimo V2.5      │  │ Deepseek V4    │     │          │
+│  │  │ 7B + persona   │  │ 284B + persona │     │          │
 │  │  └────────┬───────┘  └────────┬───────┘     │          │
 │  └───────────┼──────────────────┼──────────────┘          │
 │              │                  │                          │
@@ -73,6 +74,8 @@
 └───────────────────────────────────────────────────────────────┘
 ```
 
+> **Note:** Default OpenCode Zen models are shown above. In `run_hedge_fund.py` each role maps to whatever model you configure via `--default-model` / `--analyst-model ROLE=MODEL` (or the model in `~/.hermes/config.yaml`). The Quant role originally used North Mini Code (~1-3B) but it was replaced with Deepseek V4 Flash (284B) — the small model produced garbage output.
+
 ## Data Flow
 
 ```
@@ -82,18 +85,20 @@ Step 1: COLLECT
    ├── Portfolio   → live prices (MOEX ISS)
    ├── Candles     → 14d OHLCV per ticker (~75 candles)
    ├── MOEX News   → ~50 биржевых уведомлений
-   ├── RSS Feeds   → SmartLab, ПРАЙМ, Интерфакс, Investing.com
+   ├── RSS Feeds   → per-ticker (SmartLab, Finam, 1prime, Interfax, ...)
    └── Indices     → IMOEX, RTSI, MOEXBC
 
-Step 2: ANALYZE (parallel)
+Step 2: ANALYZE (parallel via ThreadPoolExecutor)
    for each analyst (fundamental, news, technical, quant):
-       cat persona_{role}.txt data.json | opencode run --model {model}
-   
+       prompt = persona_{role}.txt + moex_data.json
+       hermes chat -q "$prompt" -m {model} -t '' --cli --yolo --ignore-rules -Q
+
 Step 3: SYNTHESIZE
-   cat arbiter.txt all_analyses.txt | opencode run --model opencode/nemotron-3-ultra-free
+   prompt = arbiter.txt + all_analyses.txt + moex_data.json
+   hermes chat -q "$prompt" -m {arbiter_model} -t '' --cli --yolo --ignore-rules -Q
 
 Step 4: OUTPUT
-   CIO Signal → stdout
+   CIO Signal → stdout + data/hedge_fund_report_*.md
 ```
 
 ## Architecture Decisions
@@ -101,17 +106,19 @@ Step 4: OUTPUT
 | Decision | Rationale |
 |----------|-----------|
 | **Council mode** (parallel) | Analysts are independent — no sequential dependency |
-| **stdin pipe** for data | Avoids file I/O races in parallel processes |
+| **`-q` prompt flag** for hermes chat | Single-query, non-interactive; avoids TTY and stdin ambiguity |
+| **`-t ''` empty toolset** | Models answer as text only — no tool calls that could derail analysis |
+| **`--ignore-rules`** | Don't inject AGENTS.md/memory into analyst prompts — clean persona-only context |
 | **Nemotron as arbiter** | 550B = best for synthesis, but fallback to Deepseek |
 | **Persona files** | Separates prompt engineering from orchestration logic |
-| **mktemp for analyst outputs** | Cleanup via `trap EXIT` — no temp file leaks |
-| **& + wait parallelism** | Native bash, no external orchestration needed |
+| **`tempfile.mkdtemp` + `atexit`** | Auto-cleanup of analyst output dirs on exit |
+| **ThreadPoolExecutor** | Native Python parallelism for the 4 analyst `hermes chat` calls |
 
 ## Error Handling
 
 ```
 Analyst failure → continue others → mark as abstain in arbiter
-Nemotron timeout → auto-fallback to Deepseek V4 Flash
-RSS unavailable → skip, note in arbiter context
+RSS unavailable → skip ticker's RSS, note in arbiter context
 MOEX ISS down → data collector timeout → abort pipeline
+hermes chat 401 → check ~/.hermes/config.yaml model + provider billing
 ```

@@ -1,21 +1,22 @@
 @echo off
-REM MOEX AI Hedge Fund - Desktop Launcher
-REM Запускает сбор данных и мульти-агентный анализ MOEX
+REM hedge_fund.bat — обёртка для Windows
+REM Использует Python вместо bash (нет зависимости от opencode CLI)
 
-cd /d "%~dp0"
-echo =====================================================
-echo   MOEX AI Hedge Fund
-echo   Tickers: SBER, GAZP, LKOH, SBERP, VTBR
-echo =====================================================
-echo.
+setlocal
 
-echo [1/2] Collecting MOEX data...
-python scripts/collect_moex_data.py --output data/market.json
-echo.
-
-echo [2/2] Running analysts + CIO...
-bash scripts/run_hedge_fund.sh --data data/market.json
+set SCRIPT_DIR=%~dp0
+set PY_SCRIPT=%SCRIPT_DIR%run_hedge_fund.py
 
 echo.
-echo Done. Press any key to close...
-pause > nul
+echo ======================================================
+echo   MOEX AI Hedge Fund (Python launcher)
+echo ======================================================
+echo.
+
+if "%~1"=="" (
+    python "%PY_SCRIPT%"
+) else (
+    python "%PY_SCRIPT%" %*
+)
+
+endlocal
