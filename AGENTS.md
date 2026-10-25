@@ -56,6 +56,9 @@ python scripts/collect_moex_data.py --output data/market.json
 7. **Check liquidity hours**: MOEX 10:00-18:45 MSK weekdays only
 8. **Leak-check before any push**: grep for Windows paths (`C:\`, `C:\\Users`), emails, tokens
 9. **`hermes chat` flags**: `-q QUERY` (not `-z`), `-m MODEL`, `-t ''` (empty toolset), `--cli --yolo --ignore-rules -Q`. Model `default` is NOT valid — use a real model ID from `~/.hermes/config.yaml`.
+10. **External content is untrusted**: RSS/news text goes straight into LLM prompts. Keep the untrusted-data notice in `run_hedge_fund.py` (`UNTRUSTED_DATA_NOTICE`) and in `run_hedge_fund.sh` when editing prompts.
+11. **No hardcoded hermes profile names** — `find_skill_dir()` must scan all profiles; never pin a machine-specific profile path.
+12. **`CIO_MODEL` env var** overrides the arbiter model in `run_hedge_fund.sh` (default `opencode/deepseek-v4-flash-free`).
 
 ## Model IDs (legacy opencode CLI — for run_hedge_fund.sh)
 

@@ -10,39 +10,71 @@ Usage:
   python collect_moex_data.py --hours 72  # RSS за 72ч
 """
 
-import argparse, datetime, json, os, sys, subprocess
+import argparse, datetime, json, os, subprocess, sys
 
-# Путь к moex-iss скриптам (установленный skill)
+# Дочерние python-процессы должны писать в stdout UTF-8 независимо от
+# локали Windows (иначе кириллица превращается в mojibake при чтении пайпа).
+CHILD_ENV = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+
+
 def find_skill_dir():
+    """Ищет skill moex-iss во ВСЕХ профилях hermes (имя профиля не хардкодится)."""
     home = os.path.expanduser("~")
-    candidates = [
-        os.path.join(home, "AppData", "Local", "hermes", "profiles", "old-laptop", "skills", "moex-iss"),
-        os.path.join(home, ".hermes", "profiles", "old-laptop", "skills", "moex-iss"),
-        os.path.expanduser("~/.hermes/skills/moex-iss"),
+    roots = [
+        os.path.join(home, "AppData", "Local", "hermes", "profiles"),
+        os.path.join(home, ".hermes", "profiles"),
+        os.path.join(home, ".hermes"),
     ]
-    for c in candidates:
-        if os.path.isdir(c):
-            return os.path.normpath(c)
-    return os.path.normpath(candidates[0])  # fallback
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        # прямой путь root/skills/moex-iss (без профиля)
+        direct = os.path.join(root, "skills", "moex-iss")
+        if os.path.isfile(os.path.join(direct, "scripts", "moex_iss.py")):
+            return os.path.normpath(direct)
+        # перебираем профили в алфавитном порядке
+        try:
+            for name in sorted(os.listdir(root)):
+                cand = os.path.join(root, name, "skills", "moex-iss")
+                if os.path.isfile(os.path.join(cand, "scripts", "moex_iss.py")):
+                    return os.path.normpath(cand)
+        except OSError:
+            continue
+    return None
 
 SKILL_DIR = find_skill_dir()
-MOEX_SCRIPT = os.path.join(SKILL_DIR, "scripts", "moex_iss.py")
-RSS_SCRIPT = os.path.join(SKILL_DIR, "scripts", "market_news.py")
+MOEX_SCRIPT = os.path.join(SKILL_DIR, "scripts", "moex_iss.py") if SKILL_DIR else None
+RSS_SCRIPT = os.path.join(SKILL_DIR, "scripts", "market_news.py") if SKILL_DIR else None
 
 DEFAULT_TICKERS = "SBER,GAZP,LKOH,SBERP,VTBR"
 CANDLE_DAYS = 14
 
 
 def run(cmd, timeout=30):
-    """Запуск команды, возврат stdout."""
+    """Запуск python-скрипта moex-iss, возврат stdout (или текст ошибки)."""
+    if not cmd or cmd[0] is None:
+        return "ERROR: moex-iss skill not found (см. SKILL.md, раздел Установка)"
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run([sys.executable] + cmd, capture_output=True, timeout=timeout,
+                           encoding="utf-8", errors="replace", env=CHILD_ENV)
+        if r.returncode != 0:
+            err = (r.stderr or "").strip()[:300]
+            return f"ERROR: rc={r.returncode} {err}" if err else f"ERROR: rc={r.returncode}"
         return r.stdout
+    except subprocess.TimeoutExpired:
+        return f"ERROR: timeout after {timeout}s"
     except Exception as e:
         return f"ERROR: {e}"
 
 
 def main():
+    # Кириллица/emoji в выводе не должны падать при редиректе на Windows (cp1251)
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     ap = argparse.ArgumentParser(description="MOEX Data Collector for AI Hedge Fund")
     ap.add_argument("--tickers", default=DEFAULT_TICKERS,
                     help="Comma-separated tickers (default: %s)" % DEFAULT_TICKERS)
@@ -54,8 +86,13 @@ def main():
                     help="Output JSON path (default: stdout)")
     args = ap.parse_args()
 
+    if not SKILL_DIR:
+        print("ERROR: skill moex-iss не найден. Установите его в "
+              "%LOCALAPPDATA%\\hermes\\profiles\\<name>\\skills\\moex-iss "
+              "или ~/.hermes/skills/moex-iss", file=sys.stderr)
+        sys.exit(2)
+
     tickers = [t.strip().upper() for t in args.tickers.split(",")]
-    now = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
 
     data = {
         "meta": {
@@ -72,16 +109,16 @@ def main():
 
     # 1. Портфель (все тикеры разом)
     print("[1/6] Portfolio...", file=sys.stderr)
-    out = run(["python", MOEX_SCRIPT, "portfolio", args.tickers])
+    out = run([MOEX_SCRIPT, "portfolio", args.tickers])
     data["portfolio"] = out.strip()
 
     # 2. Свечи по каждому тикеру (за candle_days, ежедневные)
     # ВАЖНО: --output ДО подкоманды (argparse quirk)
     for t in tickers:
         print(f"[2/6] Candles {t} ({args.candle_days}d)...", file=sys.stderr)
-        out = run(["python", MOEX_SCRIPT, "--output", "json",
-                    "candles", t,
-                    "--interval", "24", "--days", str(args.candle_days)], timeout=30)
+        out = run([MOEX_SCRIPT, "--output", "json",
+                   "candles", t,
+                   "--interval", "24", "--days", str(args.candle_days)], timeout=30)
         try:
             data["candles"][t] = json.loads(out) if out.strip() else []
         except json.JSONDecodeError:
@@ -89,7 +126,7 @@ def main():
 
     # 3. Новости MOEX
     print("[3/6] MOEX News...", file=sys.stderr)
-    out = run(["python", MOEX_SCRIPT, "news", "--days", "2", "--limit", "20"])
+    out = run([MOEX_SCRIPT, "news", "--days", "2", "--limit", "20"])
     data["moex_news"] = out.strip()
 
     # 4. RSS по каждому тикеру отдельно
@@ -98,12 +135,12 @@ def main():
     print(f"[4/6] RSS feeds ({args.rss_hours}h)...", file=sys.stderr)
     for t in tickers:
         print(f"  RSS {t}...", file=sys.stderr)
-        out = run(["python", RSS_SCRIPT, t, "--hours", str(args.rss_hours)], timeout=45)
+        out = run([RSS_SCRIPT, t, "--hours", str(args.rss_hours)], timeout=45)
         data["rss_news"][t] = out.strip()
 
     # 5. Индексы
     print("[5/6] Indices...", file=sys.stderr)
-    out = run(["python", MOEX_SCRIPT, "indices"])
+    out = run([MOEX_SCRIPT, "indices"])
     data["indices"] = out.strip()
 
     # 6. Итоговые тикеры
