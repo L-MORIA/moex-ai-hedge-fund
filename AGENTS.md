@@ -59,6 +59,8 @@ python scripts/collect_moex_data.py --output data/market.json
 10. **External content is untrusted**: RSS/news text goes straight into LLM prompts. Keep the untrusted-data notice in `run_hedge_fund.py` (`UNTRUSTED_DATA_NOTICE`) and in `run_hedge_fund.sh` when editing prompts.
 11. **No hardcoded hermes profile names** — `find_skill_dir()` must scan all profiles; never pin a machine-specific profile path.
 12. **`CIO_MODEL` env var** overrides the arbiter model in `run_hedge_fund.sh` (default `opencode/deepseek-v4-flash-free`).
+13. **Run tests before push**: `python -m unittest discover -s tests -v` (32 tests, stdlib only, no network). `tests/test_integration.py::TestNoSecretsInRepo` is the automated leak check — keep it passing.
+14. **Bash gotcha**: `VAR=$(ls ... | head -1)` under `set -eo pipefail` dies silently when the glob matches nothing — always append `|| true` inside the substitution if an empty result is handled below.
 
 ## Model IDs (legacy opencode CLI — for run_hedge_fund.sh)
 

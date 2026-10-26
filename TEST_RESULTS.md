@@ -1,5 +1,33 @@
 # Test Results
 
+## Test 4: Unit & Integration Suite (fix verification) — 2026-10-27
+
+**Command:** `python -m unittest discover -s tests -v`
+
+**Suite:** 32 tests, stdlib `unittest` only (no external deps, no network, no hermes/opencode required).
+
+| Group | Tests | Covers |
+|-------|-------|--------|
+| `TestParseModelArgs` | 5 | role=model mapping, arbiter independence, unknown role / missing `=` warnings |
+| `TestFindSkillDir` (×2 modules) | 5 | profile scanning, direct skill path, no-skill → None, no hardcoded profile |
+| `TestCallHermesModel` | 6 | CLI flag contract, rc≠0, empty response, timeout, not-in-PATH, prompt-too-long guard |
+| `TestRunHelper` | 3 | skill-not-found, timeout, stderr propagation |
+| `TestCollectData` / collector main | 5 | ticker normalization (bug #16), JSON parsing, error strings, output file |
+| `TestBashOrchestrator` | 2 | `--no-collect` friendly error (bug #15), `bash -n` syntax |
+| `TestPythonCliErrors` | 2 | `--analysts` typos, invalid `--data` JSON → exit 1 with message, no traceback |
+| `TestLauncherFiles` | 2 | .bat ASCII-only, no personal profile names |
+| `TestNoSecretsInRepo` | 1 | leak scan (api keys, GitHub/AWS tokens, private keys, emails, personal `C:\Users\<name>` paths) over all tracked files |
+
+**Red → green proof:** before the fix, exactly 4 tests failed (bugs #15, #16 in both
+python scripts, #17); after the fix:
+
+```
+Ran 32 tests in 0.664s
+OK
+```
+
+Plus: `pyflakes scripts/*.py` clean, `bash -n scripts/run_hedge_fund.sh` OK.
+
 ## Test 1: Data Collection — 2026-07-08
 
 **Command:** `python collect_moex_data.py --tickers SBER,GAZP,LKOH,SBERP,VTBR --candle-days 14 --rss-hours 48`

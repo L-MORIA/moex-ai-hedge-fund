@@ -92,7 +92,9 @@ def main():
               "или ~/.hermes/skills/moex-iss", file=sys.stderr)
         sys.exit(2)
 
-    tickers = [t.strip().upper() for t in args.tickers.split(",")]
+    # Пустые элементы и регистр нормализуем сразу: portfolio получает ту же
+    # строку, что и свечи/RSS (сырая строка из --tickers не должна уходить в skill)
+    tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
 
     data = {
         "meta": {
@@ -109,7 +111,7 @@ def main():
 
     # 1. Портфель (все тикеры разом)
     print("[1/6] Portfolio...", file=sys.stderr)
-    out = run([MOEX_SCRIPT, "portfolio", args.tickers])
+    out = run([MOEX_SCRIPT, "portfolio", ",".join(tickers)])
     data["portfolio"] = out.strip()
 
     # 2. Свечи по каждому тикеру (за candle_days, ежедневные)

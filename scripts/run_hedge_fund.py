@@ -18,7 +18,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -106,15 +105,17 @@ def collect_data(tickers, candle_days, rss_hours, output_path):
               "или ~/.hermes/skills/moex-iss, либо запустите с --data/--no-collect.",
               file=sys.stderr)
         sys.exit(2)
+    # Нормализуем один раз: portfolio получает ту же строку, что и свечи/RSS
+    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    tickers = ",".join(ticker_list)
     data = {
         "meta": {
             "collected_at": datetime.datetime.now().isoformat(),
-            "tickers": [t.strip().upper() for t in tickers.split(",")],
+            "tickers": ticker_list,
             "source": "MOEX ISS + RSS feeds",
         },
         "portfolio": None, "candles": {}, "moex_news": None, "rss_news": {}, "indices": None,
     }
-    ticker_list = [t.strip().upper() for t in tickers.split(",")]
 
     data["portfolio"] = run([MOEX_SCRIPT, "portfolio", tickers]).strip()
 
@@ -237,6 +238,9 @@ def parse_model_args(model_args, default_model):
                 print(f"  WARNING: unknown role '{role}' in --analyst-model "
                       f"(valid: {', '.join(sorted(known))})", file=sys.stderr)
             mapping[role] = m.strip()
+        else:
+            print(f"  WARNING: --analyst-model item '{item}' ignored: expected role=model",
+                  file=sys.stderr)
     # Заполняем дефолтами: аналитики + arbiter
     result = {role: mapping.get(role, default_model) for role, _ in DEFAULT_ANALYSTS}
     result["arbiter"] = mapping.get("arbiter", default_model)
@@ -362,7 +366,7 @@ def main():
                                  for role, model, text in results)
 
     # ── Step 3: Арбитр ────────────────────────────────────────────────
-    print(f"\n[3/3] Running CIO (Arbiter)...", file=sys.stderr)
+    print("\n[3/3] Running CIO (Arbiter)...", file=sys.stderr)
     arbiter_response = run_arbiter(arbiter_model, analyses_text, data_text)
 
     # ── Вывод ─────────────────────────────────────────────────────────
@@ -387,7 +391,7 @@ def main():
     # Сохранить отчёт
     report_path = os.path.join(data_dir, f"hedge_fund_report_{datetime.datetime.now():%Y-%m-%d_%H%M}.md")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write(f"# MOEX AI Hedge Fund Report\n\n")
+        f.write("# MOEX AI Hedge Fund Report\n\n")
         f.write(f"**Date:** {datetime.datetime.now():%Y-%m-%d %H:%M}\n")
         f.write(f"**Tickers:** {args.tickers}\n")
         f.write(f"**Mode:** {args.mode}\n\n")

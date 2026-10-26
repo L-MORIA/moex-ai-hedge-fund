@@ -60,7 +60,9 @@ elif [ -n "$DATA_FILE" ]; then
     echo ">> [1/3] Using existing data: $DATA_FILE"
 else
     echo ">> [1/3] Skipping data collection (--no-collect)"
-    DATA_FILE=$(ls -t "$DATA_DIR"/moex_data_*.json 2>/dev/null | head -1)
+    # || true: при пустой папке ls вернёт rc!=0, а set -eo pipefail убил бы
+    # скрипт прямо здесь — молча, вместо дружелюбной ошибки ниже
+    DATA_FILE=$(ls -t "$DATA_DIR"/moex_data_*.json 2>/dev/null | head -1 || true)
     if [ -z "$DATA_FILE" ]; then
         echo "ERROR: No existing data found. Run without --no-collect first."
         exit 1
